@@ -187,12 +187,17 @@ Alembic lock, and a schema change would run once per container.
 
 ### The image
 
-Multi-stage, CPU-only torch, unprivileged user, ~2.6 GB. The retrieval models
-are **baked in at build time** rather than fetched on first use: otherwise the
-first citizen to ask a question waits for a ~560 MB download, and booting
-depends on Hugging Face being reachable. `HF_HUB_OFFLINE=1` in the runtime
-stage turns any future accidental fetch into a loud error instead of a silent
-one.
+Multi-stage, CPU-only torch, unprivileged user. **3.0 GB on disk, ~825 MB
+compressed** — the dependency tree is 1.4 GB of that and the models 559 MB.
+Most of the remaining weight is torch, and the CPU wheel is already the small
+one; the default CUDA build would add roughly another 2 GB for hardware that
+is not there.
+
+The retrieval models are **baked in at build time** rather than fetched on
+first use: otherwise the first citizen to ask a question waits for a 559 MB
+download, and booting depends on Hugging Face being reachable.
+`HF_HUB_OFFLINE=1` in the runtime stage turns any future accidental fetch into
+a loud error instead of a silent one.
 
 The harvest stack is deliberately absent. Rebuilding the corpus is a job you
 run on a host, not a capability the web server needs.

@@ -65,7 +65,12 @@ services:
       # stack that works locally fails in a container.
       DATABASE_URL: >-
         postgresql+psycopg://${POSTGRES_USER:-askbharat}:${POSTGRES_PASSWORD:-askbharat}@db:5432/${POSTGRES_DB:-askbharat}
-      APP_ENV: ${APP_ENV:-production}
+      # This file is the development stack, so it opts back down to
+      # development while the image itself defaults to production — safe for
+      # anyone running the image directly. Leaving it at production here would
+      # log a configuration error about the development password on every
+      # `docker compose up`, which only teaches people to ignore the check.
+      APP_ENV: ${APP_ENV:-development}
       HOST: 0.0.0.0
       PORT: 8077
       # One worker is a RAM ceiling, not a default to tune away: each loads its
