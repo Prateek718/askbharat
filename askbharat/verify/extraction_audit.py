@@ -30,13 +30,16 @@ import sys
 import warnings
 from collections import Counter
 
+# Set before the imports below, not after: pypdf and pdfminer emit their
+# noisiest warnings at import time, and a filter installed afterwards is too
+# late to catch them. The E402s are the price of that ordering.
 warnings.filterwarnings("ignore")
 
-import httpx
-from pypdf import PdfReader
+import httpx  # noqa: E402
+from pypdf import PdfReader  # noqa: E402
 
-from askbharat.config import DATA_DIR, settings
-from askbharat.ingest.adapters.static import (
+from askbharat.config import DATA_DIR, settings  # noqa: E402
+from askbharat.ingest.adapters.static import (  # noqa: E402
     _pdfplumber_text,
     extract_html,
     is_corrupt,

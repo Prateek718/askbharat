@@ -14,6 +14,7 @@ one-time harvest of a few thousand pages that is an acceptable trade.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 from dataclasses import dataclass, field
@@ -286,16 +287,16 @@ class RenderedFetcher:
                 # instead — that works whatever sections a page happens to have.
                 await self._wait_for_content(page)
                 if self.wait_for:
-                    try:
+                    # Nice-to-have, never load-bearing: _wait_for_content above
+                    # is what actually decides the page is ready.
+                    with contextlib.suppress(PlaywrightTimeout):
                         await page.wait_for_selector(self.wait_for, timeout=3_000)
-                    except PlaywrightTimeout:
-                        pass          # nice-to-have, never load-bearing
-                try:
+                # Government pages routinely keep a socket open forever, so
+                # networkidle is a bonus rather than a condition.
+                with contextlib.suppress(PlaywrightTimeout):
                     await page.wait_for_load_state(
                         "networkidle", timeout=min(self.timeout_ms, 12_000)
                     )
-                except PlaywrightTimeout:
-                    pass
 
                 # Visible-only text, kept as a baseline so the hidden-content
                 # gain is measurable per page rather than assumed.

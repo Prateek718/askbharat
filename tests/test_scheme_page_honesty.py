@@ -26,6 +26,33 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def corpus_loaded():
+    """Refuse to interpret an empty database as a finished one.
+
+    Every test below locates a scheme in some state and skips when it finds
+    none. That is right when the corpus is loaded and the state has genuinely
+    been exhausted. It is a false claim when the catalogue is empty — which is
+    exactly the case in CI, where the corpus is not in version control. The
+    suite would report "every scheme has been extracted" over a database with
+    no schemes in it: green, confident and wrong.
+
+    That is the same confusion this file exists to catch. An absent value and
+    an unexamined source are one shape in the database and opposite claims to
+    a reader, and the test suite was making the reader's mistake about itself.
+    """
+    from sqlalchemy import text
+
+    from askbharat.db.session import session_scope
+    with session_scope() as s:
+        n = s.execute(text("SELECT count(*) FROM scheme_catalogue")).scalar_one()
+    if not n:
+        pytest.skip(
+            "no corpus loaded — these assertions need real scheme data; "
+            "run load_catalogue and load_corpus first"
+        )
+
+
 def _find(client, extracted: bool, has_page: bool | None = None) -> str | None:
     """A slug in a given state, or None if no scheme is in that state.
 

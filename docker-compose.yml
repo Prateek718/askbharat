@@ -1,21 +1,88 @@
+# Development stack: `docker compose up -d` gives a database, applied
+# migrations and the site.
+#
+# The credentials below default to the development password so a clone starts
+# with no setup. That default is exactly what Settings.check_production_ready()
+# reports as a configuration error under APP_ENV=production, so it cannot
+# quietly become the production password.
+
+x-db-env: &db-env
+  POSTGRES_USER: ${POSTGRES_USER:-askbharat}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-askbharat}
+  POSTGRES_DB: ${POSTGRES_DB:-askbharat}
+
 services:
   db:
     image: pgvector/pgvector:pg16
     container_name: askbharat-db
-    environment:
-      POSTGRES_USER: askbharat
-      POSTGRES_PASSWORD: askbharat
-      POSTGRES_DB: askbharat
+    environment: *db-env
     ports:
-      # 5433 on the host to avoid colliding with a local Postgres on 5432
-      - "5433:5432"
+      # 5433 on the host to avoid colliding with a local Postgres on 5432.
+      # Inside the compose network the app still talks to 5432.
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U askbharat -d askbharat"]
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-askbharat} -d ${POSTGRES_DB:-askbharat}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  # Migrations run as their own one-shot service rather than from the app's
+  # entrypoint. Two replicas starting at once would otherwise race to hold the
+  # same Alembic lock, and a schema change would run as many times as there are
+  # containers. This runs once, to completion, before the app is allowed up.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: askbharat-web:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: >-
+        postgresql+psycopg://${POSTGRES_USER:-askbharat}:${POSTGRES_PASSWORD:-askbharat}@db:5432/${POSTGRES_DB:-askbharat}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: askbharat-web:latest
+    container_name: askbharat-web
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # `db` is the compose service name; localhost inside a container is the
+      # container itself. Getting this wrong is the single most common way a
+      # stack that works locally fails in a container.
+      DATABASE_URL: >-
+        postgresql+psycopg://${POSTGRES_USER:-askbharat}:${POSTGRES_PASSWORD:-askbharat}@db:5432/${POSTGRES_DB:-askbharat}
+      APP_ENV: ${APP_ENV:-production}
+      HOST: 0.0.0.0
+      PORT: 8077
+      # One worker is a RAM ceiling, not a default to tune away: each loads its
+      # own bi-encoder and cross-encoder, ~1.1 GB resident apiece.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+      # Optional. Without it, browse, search and every scheme page still work;
+      # only the assistant goes quiet.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      CRAWLER_CONTACT: ${CRAWLER_CONTACT:-}
+    ports:
+      - "${WEB_PORT:-8077}:8077"
+    volumes:
+      # Page bodies are content-addressed on disk and read at request time, so
+      # the corpus is mounted rather than copied into the image. Read-only:
+      # nothing in the serving path writes to it.
+      - ./data:/app/data:ro
+    restart: unless-stopped
 
 volumes:
   pgdata:

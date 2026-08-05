@@ -1,0 +1,39 @@
+# The build context is sent to the daemon before the first instruction runs.
+# Unignored, data/ alone makes that ~600 MB per build.
+
+data/
+*.jsonl
+*.log
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+.git/
+.github/
+
+# Never let a real key into an image layer. The container takes its
+# configuration from the environment; .env is a local development convenience.
+.env
+*.key
+
+# Not part of the runtime image: the harvest-only entry points and the scratch
+# fetches from the exploration phase.
+tests/
+bench/
+gj.html
+sd.html
+ms.json
+ms0.xml
+msm.xml
+harvest.py
+harvest_schemes.py
+check_links.py
+
+*.md
+!README.md
+
+.DS_Store

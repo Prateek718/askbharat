@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push makes an in-flight run irrelevant.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      # The same image the dev stack and the deploy target use. Plain postgres
+      # would pass most of this suite and then fail on the vector columns,
+      # which is precisely the failure CI exists to catch early.
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: askbharat
+          POSTGRES_PASSWORD: askbharat
+          POSTGRES_DB: askbharat
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U askbharat -d askbharat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+psycopg://askbharat:askbharat@localhost:5433/askbharat
+      # Never a real key. The suite stubs the provider; anything that would
+      # reach OpenRouter should fail loudly here rather than spend quota.
+      OPENROUTER_API_KEY: ""
+      CRAWLER_CONTACT: https://github.com/${{ github.repository }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+
+      - name: Install dependencies
+        # dev.txt pulls web + harvest + tooling. The Playwright browser binary
+        # is deliberately not installed: no test drives a real browser, and
+        # fetching Chromium would add minutes to every run.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+
+      - name: Lint
+        run: ruff check askbharat/ tests/
+
+      - name: Apply migrations
+        # Proves the migration chain applies to an empty database from scratch,
+        # which is the path a first deploy takes and the one a long-lived dev
+        # database never exercises again.
+        run: alembic upgrade head
+
+      - name: Test
+        # The corpus lives outside version control, so the tests that assert
+        # over real scheme data skip here rather than fail. What CI covers is
+        # the logic: coercion, fusion, limiter, streaming, page honesty.
+        run: pytest -q -rs
+
+  image:
+    name: Build runtime image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only — publishing is a separate decision and needs a registry
+      # and credentials this repository does not carry.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: askbharat-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot the image and check liveness
+        # A built image that cannot start is not a passing build. No database
+        # here on purpose: /api/health is process-only, and this asserts that.
+        run: |
+          docker run -d --name web -p 8077:8077 askbharat-web:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8077/api/health; then
+              echo "\nliveness ok"; exit 0
+            fi
+            sleep 2
+          done
+          echo "image failed to become live"; docker logs web; exit 1
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs web || true
