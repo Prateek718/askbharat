@@ -1,0 +1,8 @@
+# Everything, plus the test and lint tooling. This is the local development
+# environment and what CI installs.
+
+-r web.txt
+-r harvest.txt
+
+pytest==9.1.1
+ruff==0.16.0

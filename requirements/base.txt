@@ -1,0 +1,19 @@
+# Shared by every entry point: config, database, and the LLM client.
+#
+# Versions are pinned exactly. The deploy target and CI must resolve to the
+# same tree the tests ran against — a `>=` range means the image built on
+# Tuesday is not the image built on Monday, and the difference only shows up
+# in production.
+
+pydantic==2.13.4
+PyYAML==6.0.3
+httpx==0.28.1
+
+SQLAlchemy==2.0.51
+psycopg[binary]==3.3.4
+pgvector==0.5.0
+alembic==1.18.5
+
+# OpenRouter speaks the OpenAI API; this is the client for both extraction
+# and the live assistant.
+openai==2.48.0

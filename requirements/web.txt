@@ -1,0 +1,21 @@
+# What the site needs to serve traffic. This is the set that goes into the
+# runtime image, and it deliberately excludes the harvest stack: Playwright
+# pulls a ~400 MB Chromium that a web server will never open.
+
+-r base.txt
+
+fastapi==0.140.13
+uvicorn[standard]==0.51.0
+Jinja2==3.1.6
+
+# Retrieval runs in the web process: the e5 bi-encoder embeds the query and
+# the cross-encoder reorders the pool. Together ~1.1 GB resident — see the
+# memory note on this box's RAM budget before adding workers.
+sentence-transformers==5.6.1
+
+# The CPU build. The default wheel drags in the full CUDA runtime, which is
+# ~2 GB of image for hardware that is not present. The extra index is what
+# makes the `+cpu` local version resolvable, so `pip install -r` works in one
+# step rather than the two-step dance the README used to describe.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu

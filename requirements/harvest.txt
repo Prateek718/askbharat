@@ -1,0 +1,23 @@
+# The corpus builders. Needed to regenerate data/, never to serve a request.
+#
+# Two corrections live in this file. The old flat requirements.txt declared
+# `crawl4ai`, which nothing imports and which was not even installed, and it
+# omitted `playwright`, which `ingest/adapters/rendered.py` imports at module
+# level. It also omitted `pypdf`, a hard import in `ingest/adapters/static.py`.
+# A clean `pip install` therefore produced an environment where the static
+# harvest died on import — the failure was invisible locally only because the
+# working venv had both packages installed by hand.
+
+-r base.txt
+
+# Headless Chromium for myScheme's client-rendered SPA. Needs a
+# `playwright install chromium` after pip to fetch the browser itself.
+playwright==1.61.0
+
+selectolax==0.4.11
+
+# PDF text. pypdf is the default path; pdfplumber is the lazy fallback in
+# `_pdf_text`'s slow branch and stays out of the hot loop because its page
+# objects cost hundreds of megabytes on a large file.
+pypdf==6.14.2
+pdfplumber==0.11.10
