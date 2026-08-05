@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}askbharat — find the government scheme you qualify for{% endblock %}</title>
+<meta name="description" content="{% block description %}Search {{ '{:,}'.format(4810) }} central and state government schemes in one place. Plain language, official sources, honest about what is not stated.{% endblock %}">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f5c4a'/><text x='16' y='23' font-size='19' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>अ</text></svg>">
+</head>
+<body>
+{% include "_sprite.html" %}
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="wrap head-row">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">अ</span>
+      askbharat
+    </a>
+    <nav class="head-nav" aria-label="Main">
+      <a href="/schemes" {% if request.url.path.startswith('/scheme') %}aria-current="page"{% endif %}>
+        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg> Browse
+      </a>
+      <a href="/chat" {% if request.url.path == '/chat' %}aria-current="page"{% endif %}>
+        <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg> Ask
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+{% block body %}{% endblock %}
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-row">
+    <span>Data from <a href="https://www.myscheme.gov.in" rel="noopener">myScheme</a>,
+      Government of India. Always confirm on the official page before applying.</span>
+    {# Only while there is work left. The bar existed to show a multi-day
+       extraction was alive; finished, it sat on every page reading
+       "4,721 of 4,721 pages read" behind a full bar, which is a progress
+       indicator for a thing that is no longer in progress. It comes back on
+       its own the moment a new harvest queues pages. #}
+    {% if progress and progress.total and progress.pending %}
+    <span class="progress-note" title="{% if progress.running %}{{ progress.completed_last_hour }} pages read in the last hour{% else %}no pages read in the last hour{% endif %}">
+      <span class="bar"><i style="width: {{ progress.pct }}%"></i></span>
+      {{ '{:,}'.format(progress.done) }} of {{ '{:,}'.format(progress.total) }} pages read
+      {%- if progress.running %} · reading now{% endif %}
+    </span>
+    {% endif %}
+  </div>
+</footer>
+<script>
+  /* Progressive enhancement for any filter <select> that submits a GET form:
+     the form already works by pressing its button, so where JS runs the button
+     is redundant and changing the select is the action. Lives here rather than
+     per-page because two templates now use the pattern. */
+  document.querySelectorAll('.facet-form').forEach(function (form) {
+    var button = form.querySelector('button');
+    if (button) button.hidden = true;
+    form.querySelector('select').addEventListener('change', function () {
+      form.submit();
+    });
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

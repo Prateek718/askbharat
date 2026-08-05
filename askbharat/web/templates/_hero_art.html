@@ -1,0 +1,101 @@
+{# Hero illustration.
+
+   Drawn rather than photographed, for the same reason the category system is
+   iconographic: 4,810 schemes have no imagery of their own, and stock photos
+   of "Indian citizens" are both a licensing problem and a cliché.
+
+   The forms are architectural — cusped and pointed arches from Indo-Islamic
+   civic buildings, a jaali screen behind them, and a marigold garland strung
+   across the top. Those read as Indian public architecture without invoking
+   any specific building, ministry, or the flag.
+
+   Inline SVG so it inherits theme tokens via currentColor and costs no extra
+   request. `aria-hidden` because it carries no information the copy does not.
+#}
+<div class="hero-art" aria-hidden="true">
+<svg viewBox="0 0 420 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img">
+  <defs>
+    <!-- Jaali lattice, tiled -->
+    <pattern id="jaali" width="26" height="26" patternUnits="userSpaceOnUse">
+      <path d="M13 0 L26 13 L13 26 L0 13 Z" fill="none"
+            stroke="var(--accent)" stroke-width="1" opacity=".28"/>
+      <circle cx="13" cy="13" r="2.1" fill="var(--marigold)" opacity=".34"/>
+    </pattern>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="var(--marigold-soft)"/>
+      <stop offset="100%" stop-color="var(--bg-raised)"/>
+    </linearGradient>
+    <!-- Arch silhouette reused as a clip for the jaali fill -->
+    <clipPath id="archClip">
+      <path d="M60 300 V150 Q60 92 118 92 Q176 92 176 150 V300 Z"/>
+      <path d="M196 300 V126 Q196 60 254 60 Q312 60 312 126 V300 Z"/>
+      <path d="M332 300 V168 Q332 116 372 116 Q412 116 412 168 V300 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- ground wash -->
+  <rect x="0" y="0" width="420" height="300" fill="url(#sky)" rx="14"/>
+
+  <!-- jaali screen inside the arches -->
+  <g clip-path="url(#archClip)">
+    <rect x="0" y="0" width="420" height="300" fill="url(#jaali)"/>
+  </g>
+
+  <!-- arch outlines -->
+  <g stroke="var(--accent)" stroke-width="2.2" fill="none" opacity=".85">
+    <path d="M60 300 V150 Q60 92 118 92 Q176 92 176 150 V300"/>
+    <path d="M196 300 V126 Q196 60 254 60 Q312 60 312 126 V300"/>
+    <path d="M332 300 V168 Q332 116 372 116 Q412 116 412 168 V300"/>
+  </g>
+
+  <!-- chhatri finials -->
+  <g fill="var(--marigold)" opacity=".9">
+    <circle cx="118" cy="80" r="4.5"/>
+    <circle cx="254" cy="48" r="5.5"/>
+    <circle cx="372" cy="104" r="4"/>
+  </g>
+
+  <!-- plinth -->
+  <rect x="40" y="300" width="380" height="10" rx="3" fill="var(--accent)" opacity=".75"/>
+  <rect x="52" y="311" width="356" height="5" rx="2.5" fill="var(--accent)" opacity=".18"/>
+
+  <!-- marigold garland (toran) strung across the top -->
+  <path id="toran" d="M28 34 Q124 76 224 34 Q322 -6 414 40"
+        stroke="var(--marigold-deep)" stroke-width="1.6" opacity=".55" fill="none"/>
+  <g class="garland">
+    <circle cx="28"  cy="34" r="5.5" fill="var(--marigold)"/>
+    <circle cx="76"  cy="50" r="5"   fill="var(--marigold)" opacity=".92"/>
+    <circle cx="125" cy="55" r="6"   fill="var(--marigold-deep)" opacity=".85"/>
+    <circle cx="174" cy="50" r="5"   fill="var(--marigold)" opacity=".92"/>
+    <circle cx="224" cy="34" r="6"   fill="var(--marigold)"/>
+    <circle cx="273" cy="19" r="5"   fill="var(--marigold-deep)" opacity=".8"/>
+    <circle cx="320" cy="16" r="5.5" fill="var(--marigold)" opacity=".9"/>
+    <circle cx="368" cy="22" r="5"   fill="var(--marigold)" opacity=".92"/>
+    <circle cx="414" cy="40" r="5.5" fill="var(--marigold-deep)" opacity=".85"/>
+  </g>
+
+  <!-- Three citizens, one per arch, each centred under its own opening.
+       The arches span 60–176, 196–312 and 332–412, so the centres are 118,
+       254 and 372. The third figure previously sat at 330 with a body from
+       316–344 — straddling the third arch's left edge rather than standing
+       in it. In the middle arch the figure and the document are treated as
+       one group and centred together, which is why that figure sits left of
+       its arch's centre rather than on it. -->
+  <g fill="var(--accent)" opacity=".9">
+    <circle cx="118" cy="258" r="10"/>
+    <path d="M102 300 v-20 a16 16 0 0 1 32 0 v20 z"/>
+    <circle cx="234" cy="250" r="11"/>
+    <path d="M216 300 v-24 a18 18 0 0 1 36 0 v24 z"/>
+    <circle cx="372" cy="262" r="9"/>
+    <path d="M358 300 v-18 a14 14 0 0 1 28 0 v18 z"/>
+  </g>
+
+  <!-- a document changing hands, the thing the site is actually about -->
+  <g transform="translate(258 244) rotate(-8)">
+    <rect x="0" y="0" width="34" height="42" rx="3"
+          fill="var(--bg-raised)" stroke="var(--marigold-deep)" stroke-width="2"/>
+    <path d="M7 12 H27 M7 20 H27 M7 28 H20" stroke="var(--marigold-deep)"
+          stroke-width="2" stroke-linecap="round" opacity=".65"/>
+  </g>
+</svg>
+</div>

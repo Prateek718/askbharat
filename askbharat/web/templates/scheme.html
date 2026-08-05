@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}{{ s.title }} · askbharat{% endblock %}
+{% block description %}{{ (s.description or s.title) | truncate(155) }}{% endblock %}
+
+{# There are FOUR states for a field, not two, and conflating any of the last
+   three makes the site lie about the government:
+
+     1. extracted, and present              -> show it
+     2. extracted, and the source is silent -> "the official page does not state X"
+     3. NOT YET EXTRACTED                   -> "we have not read this page yet"
+     4. NO PAGE PUBLISHED AT ALL            -> a fact about the source, not us
+
+   (2) and (3) look identical in the data — both are an absent value — but they
+   are opposite claims. Atal Pension Yojana states its eligibility in detail,
+   and this page told citizens it did not, purely because the extraction queue
+   had not reached it. Never assert anything about the source we have not
+   actually looked at.
+
+   (4) arrived when the extraction finished. myScheme lists 89 schemes whose
+   detail page it does not serve — every one redirects to its /404, including
+   when you click the link from myScheme's own search results. The scheme is
+   real and its catalogue entry is complete; the source's link to the details
+   is simply broken. Those pages were being shown (3): "not read *yet*",
+   promising a later state that will never arrive, and pointing at that dead
+   link as the place to find out. Note the claim here is that the page is
+   unavailable, NOT that the government never published one — the second is
+   not something the 404 lets us conclude. #}
+{% macro gap(what, extracted) -%}
+  {%- if extracted -%}
+    <span class="missing">The official page does not state {{ what }}.</span>
+  {%- elif not s.raw_document_id -%}
+    {# The `what` phrases are written to follow "does not state ...", so they
+       are noun phrases of mixed number ("eligibility conditions", "which
+       documents are needed"). Anything ending "... {{ what }} is not on
+       record" disagrees with half of them; "we could not read {{ what }}"
+       takes all four. #}
+    <span class="missing">Not on record — the government's page for this scheme
+      is unavailable, so we could not read {{ what }}.</span>
+  {%- else -%}
+    <span class="missing">Not read yet — {{ what }} may well be on the
+      <a href="{{ s.url }}" rel="noopener" target="_blank">official page</a>.</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% block body %}
+{# The compact sidebar cannot carry the full sentence the gap() macro writes,
+   but it has to make the same three-way distinction — a terse "not read yet"
+   on a scheme whose page 404s is the same false promise, just smaller. #}
+{% set nodata = "not stated" if payload
+                else ("page unavailable" if not s.raw_document_id else "not read yet") %}
+<div class="wrap">
+  <div class="detail-head">
+    <p class="crumbs">
+      <a href="/">Home</a> ›
+      <a href="/schemes">Schemes</a>
+      {% if s.categories %} ›
+        <a href="/schemes?category={{ s.categories[0] | urlencode }}">{{ s.categories[0] }}</a>
+      {% endif %}
+    </p>
+    <h1>{{ s.title }}</h1>
+    <div class="card-meta" style="margin-bottom:.5rem">
+      {% for c in s.categories or [] %}
+        <a class="tag t-{{ tone_for(c) }}" href="/schemes?category={{ c | urlencode }}"
+           style="text-decoration:none">{{ c }}</a>
+      {% endfor %}
+      {% if s.ministry %}<span class="tag tag-plain">{{ s.ministry }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="answer-grid">
+    <div>
+      {% if not payload %}
+        <div class="notice" style="margin-bottom:1rem">
+          <svg class="icon" aria-hidden="true"><use href="#i-doc"/></svg>
+          {% if not s.raw_document_id %}
+          <span>
+            <strong>The government's page for this scheme is unavailable.</strong>
+            The scheme is listed on myScheme, but its link to the details is
+            broken — so what you see below is everything the official listing
+            contains. Nothing has been left out on our side.
+          </span>
+          {% else %}
+          <span>
+            <strong>Details not extracted yet.</strong>
+            We have archived this scheme's official page but haven't pulled out
+            its eligibility and documents yet — that work is
+            {{ progress.pct }}% complete across the catalogue. The official
+            description below is published by the government.
+          </span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <section class="panel">
+        <h2>What it is</h2>
+        {% if payload.what_it_is %}
+          <p style="margin:0">{{ payload.what_it_is }}</p>
+        {% elif s.description %}
+          <p style="margin:0">{{ s.description }}</p>
+        {% else %}
+          <p style="margin:0">{{ gap('a description', payload) }}</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Who is eligible</h2>
+        {% if payload.who_is_eligible %}
+          <p style="margin:0">{{ payload.who_is_eligible }}</p>
+        {% else %}
+          <p style="margin:0">{{ gap('eligibility conditions', payload) }}</p>
+        {% endif %}
+      </section>
+
+      {# Shown only when the source states one, and styled as a warning rather
+         than another grey panel. A disqualifier the citizen skims past costs
+         them a rejected application and a wasted trip to an office. #}
+      {% if payload.get('exclusions') %}
+      <section class="panel" style="border-color:var(--tone-red);background:var(--tone-red-bg)">
+        <h2 style="color:var(--tone-red)">Who is NOT eligible</h2>
+        {# The schema stores this as prose, but the coercion layer joins a
+           list of conditions with "; " — rendered raw that is an unreadable
+           wall exactly where a citizen most needs to scan. Split it back. #}
+        {% set bars = payload.get('exclusions').split('; ') | reject('equalto', '') | list %}
+        {% if bars | length > 1 %}
+          <ul style="margin:0;padding-left:1.15rem">
+            {% for b in bars %}<li style="margin-bottom:.35rem">{{ b }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          <p style="margin:0">{{ payload.get('exclusions') }}</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <h2>Documents required</h2>
+        {% if payload.documents_required %}
+          <ul class="doclist">
+            {% for d in payload.documents_required %}
+            <li><svg class="icon" aria-hidden="true"><use href="#i-doc"/></svg><span>{{ d }}</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p style="margin:0">{{ gap('which documents are needed', payload) }}</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>How to apply</h2>
+        {% if payload.how_to_apply %}
+          <ol class="steps">
+            {% for step in payload.how_to_apply %}<li>{{ step }}</li>{% endfor %}
+          </ol>
+        {% else %}
+          <p style="margin:0">{{ gap('the application steps', payload) }}</p>
+        {% endif %}
+        {% if payload.online_url %}
+          <p style="margin:.9rem 0 0">
+            <a class="btn" href="{{ payload.online_url }}" rel="noopener nofollow" target="_blank">
+              Apply online
+              <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg>
+            </a>
+          </p>
+        {% endif %}
+      </section>
+
+      {% if related %}
+      <section class="section" style="margin-top:2rem">
+        <div class="section-head"><h2>Related schemes</h2></div>
+        <div class="card-list">
+          {% for r in related %}
+          {% set rc = (r.categories or ['?'])[0] %}
+          <a class="scheme-card" href="/scheme/{{ r.slug }}">
+            <span class="chip t-{{ tone_for(rc) }}" aria-hidden="true">
+              <svg class="icon"><use href="#i-{{ icon_for(rc) }}"/></svg>
+            </span>
+            <span style="min-width:0"><h3 style="margin:0">{{ r.title }}</h3></span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="aside">
+      <section class="panel">
+        <h2>At a glance</h2>
+        <dl style="margin:0">
+          {# payload is {} until extraction runs, so a missing key is Jinja's
+             Undefined rather than None. `is not none` passes on Undefined and
+             then formatting it raises — always test with .get(). #}
+          {% set fee = payload.get('fee_amount') %}
+          <div class="factrow">
+            <dt>Fee</dt>
+            <dd>
+              {% if fee is not none %}₹{{ '{:,.0f}'.format(fee) }}
+              {% elif payload.get('fee_notes') %}{{ payload.get('fee_notes') | truncate(40) }}
+              {% else %}<span class="missing">{{ nodata }}</span>{% endif %}
+            </dd>
+          </div>
+          <div class="factrow">
+            <dt>Processing time</dt>
+            <dd>
+              {% if payload.get('processing_time') %}{{ payload.get('processing_time') }}
+              {% else %}<span class="missing">{{ nodata }}</span>{% endif %}
+            </dd>
+          </div>
+          <div class="factrow">
+            <dt>Applies to</dt>
+            <dd>
+              {# No fallback to scheme_catalogue.state here: it is derived from
+                 the chip on the harvested page, so it is populated for exactly
+                 the schemes that already have an extracted state and NULL for
+                 all 89 that do not. Measured, not assumed — the fallback fired
+                 on 0 rows. The state for those 89 is visible in myScheme's own
+                 search results, so it is recoverable, but not from anything we
+                 currently hold. #}
+              {% if s.extracted_state %}{{ s.extracted_state }}
+              {% elif s.jurisdiction_level == 'central' %}All India
+              {% else %}<span class="missing">{{ nodata }}</span>{% endif %}
+            </dd>
+          </div>
+          <div class="factrow">
+            <dt>Apply by</dt>
+            <dd>
+              {% if payload.get('application_modes') %}{{ payload.get('application_modes') | join(', ') }}
+              {% else %}<span class="missing">{{ nodata }}</span>{% endif %}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {% if payload.helpline or payload.email or payload.office_address %}
+      <section class="panel">
+        <h2>Contact</h2>
+        {% if payload.helpline %}<p style="margin:0 0 .4rem"><a href="tel:{{ payload.helpline }}">{{ payload.helpline }}</a></p>{% endif %}
+        {% if payload.email %}<p style="margin:0 0 .4rem"><a href="mailto:{{ payload.email }}">{{ payload.email }}</a></p>{% endif %}
+        {% if payload.office_address %}<p style="margin:0;color:var(--text-soft);font-size:.9rem">{{ payload.office_address }}</p>{% endif %}
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <h2>Source</h2>
+        {# Offering the link when it is known to 404 sends someone to a dead end
+           to check the very thing this page could not tell them. Name it as
+           broken instead.
+
+           Deliberately no "search myScheme" link to soften it: their search
+           finds the scheme, but the result links back to the same dead URL, so
+           it is a longer route to the same 404. myScheme's search state also
+           lives in the client, not the URL, so there is no query parameter to
+           deep-link with — ?q= loads the unfiltered list. The useful next step
+           is the department named in the description, not the source site. #}
+        {% if s.raw_document_id %}
+        <p style="margin:0 0 .6rem;font-size:.9rem">
+          <a href="{{ s.url }}" rel="noopener" target="_blank">
+            Official myScheme page
+            <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg>
+          </a>
+        </p>
+        <p class="source-note" style="margin:0">
+          {% if s.fetched_at %}Archived {{ s.fetched_at.strftime('%d %b %Y') }}.{% endif %}
+          {% if s.extracted_at %} Details extracted {{ s.extracted_at.strftime('%d %b %Y') }}
+            {%- if s.confidence is not none %}, {{ (s.confidence * 100) | round | int }}% of fields found{% endif %}.
+          {% endif %}
+          Schemes change — confirm on the official page before you apply.
+        </p>
+        {% else %}
+        <p style="margin:0 0 .6rem;font-size:.9rem">
+          <span class="missing">myScheme's link for this scheme is broken —
+            it returns "page not found".</span>
+        </p>
+        <p class="source-note" style="margin:0">
+          Everything above comes from myScheme's own catalogue listing.
+          {% if s.ministry %}To confirm the details, approach {{ s.ministry }}
+          directly.{% else %}To confirm the details, approach the department
+          named in the description directly.{% endif %}
+        </p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

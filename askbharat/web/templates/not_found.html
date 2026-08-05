@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Scheme not found · askbharat{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="empty" style="margin-top:3rem">
+    <h1 style="margin-bottom:.5rem">We don't have that scheme.</h1>
+    <p>Nothing in the catalogue matches <code>{{ slug }}</code>. It may have been
+       renamed or withdrawn since we last checked.</p>
+    <p style="margin:0">
+      <a class="btn" href="/schemes">Browse all schemes</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

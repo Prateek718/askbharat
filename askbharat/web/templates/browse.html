@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}
+  {%- if query %}"{{ query }}" — {% elif category %}{{ category }} — {% endif -%}
+  Browse schemes · askbharat
+{% endblock %}
+
+{% macro qs(page=None, cat=None, min=None, st=None) -%}
+  ?q={{ query | urlencode }}&amp;category={{ (cat if cat is not none else category) | urlencode }}&amp;ministry={{ (min if min is not none else ministry) | urlencode }}&amp;state={{ (st if st is not none else state) | urlencode }}{% if page %}&amp;page={{ page }}{% endif %}
+{%- endmacro %}
+
+{% block body %}
+<div class="wrap">
+  <form class="searchbar" action="/schemes" method="get" role="search" style="margin:1.5rem 0 2rem">
+    <span class="field">
+      <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+      <input type="search" name="q" value="{{ query }}" placeholder="Search schemes"
+             aria-label="Search schemes" autocomplete="off">
+    </span>
+    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+    {% if ministry %}<input type="hidden" name="ministry" value="{{ ministry }}">{% endif %}
+    {% if state %}<input type="hidden" name="state" value="{{ state }}">{% endif %}
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <div class="columns">
+    <aside class="filters" aria-label="Filters">
+      {# A select, not the list of links the other facets use. Thirty-seven
+         jurisdictions would be longer than the rest of the sidebar put
+         together, and unlike categories this is not a list you browse — you
+         already know which one is yours and want to pick it by name. It stays
+         a plain GET form so it works without JavaScript; the script at the
+         bottom only removes the need to press the button. #}
+      <h3><label for="state-filter">State</label></h3>
+      <form class="facet-form" action="/schemes" method="get">
+        <input type="hidden" name="q" value="{{ query }}">
+        {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+        {% if ministry %}<input type="hidden" name="ministry" value="{{ ministry }}">{% endif %}
+        <select id="state-filter" name="state">
+          <option value="">All of India</option>
+          {% for s in states %}
+            <option value="{{ s.name }}" {{ 'selected' if state == s.name }}>
+              {{ 'Central schemes' if s.name == 'Central' else s.name }} ({{ s.n }})
+            </option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm" type="submit">Apply</button>
+      </form>
+
+      <h3>Category</h3>
+      <a class="facet" href="/schemes{{ qs(cat='') }}" aria-current="{{ 'true' if not category else 'false' }}">
+        All categories <span class="n">{{ '{:,}'.format(total_matching) }}</span>
+      </a>
+      {% for c in categories %}
+      <a class="facet" href="/schemes{{ qs(cat=c.name) }}"
+         aria-current="{{ 'true' if category == c.name else 'false' }}">
+        {{ c.name }} <span class="n">{{ c.n }}</span>
+      </a>
+      {% endfor %}
+
+      <h3>Ministry</h3>
+      <a class="facet" href="/schemes{{ qs(min='') }}" aria-current="{{ 'true' if not ministry else 'false' }}">Any ministry</a>
+      {% for m in ministries %}
+      <a class="facet" href="/schemes{{ qs(min=m.name) }}"
+         aria-current="{{ 'true' if ministry == m.name else 'false' }}">
+        {{ m.name | truncate(34) }} <span class="n">{{ m.n }}</span>
+      </a>
+      {% endfor %}
+    </aside>
+
+    <div>
+      <p class="result-count">
+        {% if results.total %}
+          <strong>{{ '{:,}'.format(results.total) }}</strong> scheme{{ '' if results.total == 1 else 's' }}
+          {%- if query %} matching "{{ query }}"{% endif %}
+          {%- if category %} in {{ category }}{% endif %}
+          {%- if ministry %} from {{ ministry }}{% endif %}
+          {%- if state == 'Central' %} open to all of India
+          {%- elif state %} for {{ state }}{% endif %}
+          · page {{ results.page }} of {{ results.pages }}
+        {% endif %}
+      </p>
+
+      {% if not results.items %}
+        <div class="empty">
+          <h3>Nothing matched.</h3>
+          <p>Try a shorter word — searching "schol" finds scholarships — or
+             <a href="/schemes">clear the filters</a>.</p>
+          <p style="margin:0"><a href="/chat">Ask the assistant instead &rarr;</a></p>
+        </div>
+      {% else %}
+        <div class="card-list">
+          {% for s in results.items %}
+          <a class="scheme-card" href="/scheme/{{ s.slug }}">
+            {% set c0 = (s.categories or ['?'])[0] %}
+            <span class="chip t-{{ tone_for(c0) }}" aria-hidden="true">
+              <svg class="icon"><use href="#i-{{ icon_for(c0) }}"/></svg>
+            </span>
+            <span style="min-width:0">
+              <h3>{{ s.title }}</h3>
+              <p>{{ s.description or 'No description published.' }}</p>
+              <span class="card-meta">
+                {# Jurisdiction leads the meta row: on a mixed list it is the
+                   first thing that decides whether a scheme is even open to
+                   you, which the category is not. Dropped when the state
+                   filter is on — every card would repeat the one word already
+                   in the heading above the list. #}
+                {% if s.state and not state %}
+                  <span class="tag tag-where">
+                    <svg class="icon-xs" aria-hidden="true">
+                      <use href="#i-{{ 'india' if s.state == 'Central' else 'pin' }}"/>
+                    </svg>
+                    {{ 'All India' if s.state == 'Central' else s.state }}
+                  </span>
+                {% endif %}
+                {% for c in (s.categories or [])[:2] %}
+                  <span class="tag t-{{ tone_for(c) }}">{{ c }}</span>
+                {% endfor %}
+                {% if s.has_detail %}
+                  <span class="tag tag-plain">details available</span>
+                {% endif %}
+              </span>
+            </span>
+          </a>
+          {% endfor %}
+        </div>
+
+        {% if results.pages > 1 %}
+        <nav class="pager" aria-label="Pagination">
+          {% if results.has_prev %}
+            <a href="/schemes{{ qs(page=results.page - 1) }}" rel="prev">&larr; Previous</a>
+          {% else %}<span class="disabled">&larr; Previous</span>{% endif %}
+          <span class="current">{{ results.page }}</span>
+          <span>of {{ results.pages }}</span>
+          {% if results.has_next %}
+            <a href="/schemes{{ qs(page=results.page + 1) }}" rel="next">Next &rarr;</a>
+          {% else %}<span class="disabled">Next &rarr;</span>{% endif %}
+        </nav>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+

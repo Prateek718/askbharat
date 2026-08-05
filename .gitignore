@@ -1,0 +1,28 @@
+# Secrets — never commit
+.env
+*.key
+
+# Data — large, regenerable, and not all of it is ours to redistribute
+data/
+*.jsonl
+*.log
+
+# Scratch fetches kept from the exploration phase — single saved responses used
+# to work out each site's shape by hand. Nothing reads them; they are not
+# fixtures. Regenerate by refetching the URL if one is ever needed again.
+/gj.html
+/sd.html
+/ms.json
+/ms0.xml
+/msm.xml
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local
+.DS_Store

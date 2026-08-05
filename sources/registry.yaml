@@ -1,0 +1,181 @@
+# Source registry — the crawl plan, under version control.
+#
+# Ordered by citizen demand, not alphabetically. Tier 1 is the set of services
+# that account for the bulk of real queries; extraction works this list top-down
+# so the product is demoable long before the full corpus lands.
+#
+# `licence`, `robots_*` and `audited_at` are filled by scripts/audit_sources.py.
+# Source.crawlable is False until that audit has run — crawling is gated on it.
+
+sources:
+  # ---- Aggregators: already harvested, structured APIs -------------------
+  - slug: india-gov-in
+    name: National Portal of India
+    base_url: https://www.india.gov.in
+    adapter: api
+    tier: 1
+    jurisdiction_level: central
+    refresh_days: 7
+    # The site's WAF 403s our identifying User-Agent, so the automated audit
+    # cannot read robots.txt. The policy below was read directly from
+    # https://www.india.gov.in/robots.txt and is recorded here by hand rather
+    # than inferred. Verified 2026-07-27.
+    robots_verified_manually:
+      allows: true          # "User-Agent: * / Allow: /*"
+      crawl_delay: 10.0
+      verified_on: 2026-07-27
+      evidence: "User-Agent: *\nAllow: /*\nCrawl-delay: 10"
+    notes: >
+      JSON endpoints found during the audit: POST /category/subcategoryservice
+      (page size fixed at 10) and the schemes search endpoints. robots.txt
+      explicitly allows all paths and asks Crawl-delay: 10; we run at 2 req/s
+      and document the deviation.
+
+  - slug: myscheme
+    name: myScheme
+    base_url: https://www.myscheme.gov.in
+    adapter: rendered
+    tier: 1
+    jurisdiction_level: central
+    refresh_days: 14
+    notes: >
+      Scheme detail pages carry the structure we need (Eligibility, Documents
+      Required, Application Process, FAQs). api.myscheme.gov.in returns 401
+      without a key — we deliberately do NOT use a key lifted from the
+      frontend; harvest the public rendered pages instead.
+
+  - slug: data-gov-in
+    name: Open Government Data Platform India
+    base_url: https://api.data.gov.in
+    adapter: api
+    tier: 2
+    jurisdiction_level: central
+    refresh_days: 30
+    # Not a crawl target: this is a documented public API accessed with a
+    # registered API key, which is a sanctioned access path rather than
+    # scraping. robots.txt does not govern it (and api.data.gov.in serves none).
+    # Recorded explicitly so the gate doesn't silently treat it as unaudited.
+    robots_verified_manually:
+      allows: true
+      crawl_delay: null
+      verified_on: 2026-07-27
+      evidence: >
+        Sanctioned API access via registered DATA_GOV_API_KEY. Terms at
+        https://www.data.gov.in/ — data published under GODL-India.
+    notes: >
+      Directory datasets only (pincode, hospitals, villages, schools). The
+      statistical bulk stays out of scope. No free-text search — discovery is a
+      one-time enumeration of filters[org_type]=Central with human approval.
+
+  # ---- Tier 1 service owners --------------------------------------------
+  - slug: passport-seva
+    name: Passport Seva
+    base_url: https://www.passportindia.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: uidai
+    name: UIDAI (Aadhaar)
+    base_url: https://uidai.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: incometax
+    name: Income Tax Department (PAN, filing)
+    base_url: https://www.incometax.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: parivahan
+    name: Parivahan Sewa (driving licence, vehicle registration)
+    base_url: https://parivahan.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: eci
+    name: Election Commission of India (voter ID)
+    base_url: https://www.eci.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: epfo
+    name: Employees' Provident Fund Organisation
+    base_url: https://www.epfindia.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: nvsp
+    name: National Voter Service Portal
+    base_url: https://www.nvsp.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: crsorgi
+    name: Civil Registration System (birth & death certificates)
+    base_url: https://crsorgi.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: nfsa
+    name: National Food Security Act portal (ration card)
+    base_url: https://nfsa.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: rti-online
+    name: RTI Online
+    base_url: https://rtionline.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: pgportal
+    name: CPGRAMS (public grievances)
+    base_url: https://pgportal.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: umang
+    name: UMANG
+    base_url: https://web.umang.gov.in
+    adapter: rendered
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: digilocker
+    name: DigiLocker
+    base_url: https://www.digilocker.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: nsp
+    name: National Scholarship Portal
+    base_url: https://scholarships.gov.in
+    adapter: static
+    tier: 1
+    jurisdiction_level: central
+
+  - slug: esic
+    name: Employees' State Insurance Corporation
+    base_url: https://www.esic.gov.in
+    adapter: static
+    tier: 2
+    jurisdiction_level: central
+
+  - slug: nhp
+    name: National Health Portal / ABHA
+    base_url: https://abdm.gov.in
+    adapter: static
+    tier: 2
+    jurisdiction_level: central

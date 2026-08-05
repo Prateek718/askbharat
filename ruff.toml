@@ -1,0 +1,12 @@
+line-length = 95
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4"]
+ignore = [
+    "E501",   # line length is handled by the formatter, not worth failing on
+    "B008",   # FastAPI/pydantic idiom uses calls in defaults
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101"]

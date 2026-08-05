@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block body %}
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+    <h1>Find the government scheme <span class="accent">you qualify for</span>.</h1>
+    <p class="lede">
+      {{ '{:,}'.format(stats.schemes or 0) }} central and state schemes, in one
+      searchable place — with the eligibility, documents and steps pulled out of
+      the official pages so you don't have to read them.
+    </p>
+
+    <form class="searchbar" action="/schemes" method="get" role="search">
+      <span class="field">
+        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" name="q" placeholder="Try: scholarship, widow pension, farmer loan"
+               aria-label="Search schemes" autocomplete="off">
+      </span>
+      <button class="btn" type="submit">Search</button>
+    </form>
+
+    {# Three tiles, not four, and none of them about our pipeline.
+       "pages read so far" was a build metric — it answered "how is the
+       extraction going", a question only we ask, and once the run finished it
+       read as unfinished work while sitting next to a larger number.
+       "52 ministries" is an institutional scale signal; nobody chooses a
+       scheme by ministry count. What a citizen wants to know before trusting
+       this: will it have mine, is the content real, how old is it. #}
+    <div class="hero-stats">
+      <div>
+        <b>{{ '{:,}'.format(stats.schemes or 0) }}</b> schemes
+        <span class="stat-sub">central &amp; all {{ stats.states or 0 }} states and UTs</span>
+      </div>
+      <div>
+        <b>{{ '{:,}'.format(stats.detailed or 0) }}</b> with full details
+        <span class="stat-sub">eligibility, documents and steps</span>
+      </div>
+      {% if stats.last_read %}
+      <div>
+        <b>{{ stats.last_read.strftime('%B %Y') }}</b>
+        <span class="stat-sub">official pages last read</span>
+      </div>
+      {% endif %}
+    </div>
+    </div>{# /hero-copy #}
+    {% include "_hero_art.html" %}
+  </div>
+</section>
+
+<div class="wrap">
+  {# State is the strongest filter this site has and it was a click deep in a
+     sidebar. "Which state am I in" is a fact the reader already knows and does
+     not have to browse for, unlike a category — so it belongs at the front
+     door, above the category grid. Same plain GET form as the browse sidebar,
+     so it works without JavaScript and the result is a shareable URL. #}
+  <section class="section" style="margin-top:2rem">
+    <div class="section-head">
+      <h2>Schemes where you live</h2>
+      <a class="more" href="/schemes?state=Central">Central schemes &rarr;</a>
+    </div>
+    <form class="facet-form state-jump" action="/schemes" method="get">
+      <label class="sr-only" for="home-state">Choose your state</label>
+      <select id="home-state" name="state">
+        <option value="">Choose your state or union territory…</option>
+        {% for s in states %}
+          {% if s.name != 'Central' %}
+            <option value="{{ s.name }}">{{ s.name }} ({{ s.n }})</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <button class="btn" type="submit">Show schemes</button>
+    </form>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Browse by category</h2>
+      <a class="more" href="/schemes">See all schemes &rarr;</a>
+    </div>
+    <div class="grid">
+      {% for c in categories %}
+      <a class="cat-card" href="/schemes?category={{ c.name | urlencode }}">
+        <span class="chip t-{{ tone_for(c.name) }}">
+          <svg class="icon" aria-hidden="true"><use href="#i-{{ icon_for(c.name) }}"/></svg>
+        </span>
+        <span>
+          <span class="cat-name">{{ c.name }}</span><br>
+          <span class="cat-count">{{ '{:,}'.format(c.n) }} schemes</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Not sure what to search for?</h2></div>
+    <div class="notice" style="max-width:70ch">
+      <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
+      <span>
+        Describe your situation in your own words — "I am a farmer in Bihar with
+        two acres" — and the assistant will find schemes that match and show you
+        exactly which official page each answer came from.
+        <br><a href="/chat" style="display:inline-block;margin-top:.5rem">Ask a question &rarr;</a>
+      </span>
+    </div>
+  </section>
+</div>
+{% endblock %}

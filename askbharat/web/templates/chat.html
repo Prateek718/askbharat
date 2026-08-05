@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Ask about government schemes · askbharat{% endblock %}
+
+{% block body %}
+<div class="wrap">
+  <div class="chat-shell">
+    <div class="chat-log" id="log" aria-live="polite" aria-atomic="false">
+      <div class="msg msg-bot">
+        <span class="msg-avatar" aria-hidden="true">अ</span>
+        <div class="msg-body">
+          <p style="margin:0 0 .6rem"><strong>Ask about any government scheme.</strong></p>
+          <p style="margin:0">
+            Describe your situation in your own words. Every answer cites the
+            official page it came from, and if the source doesn't say something,
+            I'll tell you that rather than guess.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="suggestions" id="suggestions">
+      <button class="suggestion" type="button">Scholarships for SC students</button>
+      <button class="suggestion" type="button">Pension for widows</button>
+      <button class="suggestion" type="button">Loans for a small business</button>
+      <button class="suggestion" type="button">Help for farmers buying equipment</button>
+    </div>
+
+    <form class="chat-form" id="form">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
+        <button class="suggestion" type="button" id="reset" hidden
+                title="Forget this conversation and start again">
+          Start a new conversation
+        </button>
+      </div>
+      <div class="searchbar">
+        <span class="field">
+          <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
+          <input id="q" name="q" autocomplete="off" required
+                 placeholder="e.g. I am a farmer in Bihar with two acres"
+                 aria-label="Your question">
+        </span>
+        <button class="btn" type="submit" id="send">Ask</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const log = document.getElementById('log');
+  const form = document.getElementById('form');
+  const input = document.getElementById('q');
+  const send = document.getElementById('send');
+  const suggestions = document.getElementById('suggestions');
+  const reset = document.getElementById('reset');
+
+  // The conversation lives here, in the tab. Sent up on each turn; the server
+  // keeps no session. `lastSlugs` is what the previous answer cited, so a
+  // follow-up naming no scheme ("what documents for that one?") still has the
+  // right records to resolve against.
+  let history = [];
+  let lastSlugs = [];
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+
+  function addMessage(who, text) {
+    const msg = el('div', 'msg msg-' + who);
+    const av = el('span', 'msg-avatar', who === 'you' ? 'You' : 'अ');
+    av.setAttribute('aria-hidden', 'true');
+    const body = el('div', 'msg-body');
+    if (text) body.appendChild(el('p', null, text));
+    msg.append(av, body);
+    log.appendChild(msg);
+    msg.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    return body;
+  }
+
+  // The model answers in markdown. Assigning it to textContent showed
+  // citizens literal "**Eligibility:**" and collapsed every list into one
+  // run-on paragraph — the answer was there and unreadable.
+  //
+  // This renders the small subset the model actually emits: paragraphs,
+  // "- " bullets, and **bold**. Everything is built with createTextNode and
+  // createElement, never innerHTML, so a scheme name containing "<" cannot
+  // become markup. A full markdown library would be a dependency and a much
+  // larger surface for exactly the injection we are avoiding.
+  function renderInline(target, text) {
+    var parts = text.split(/(\*\*[^*]+\*\*)/g);
+    parts.forEach(function (part) {
+      if (!part) return;
+      if (part.length > 4 && part.slice(0, 2) === '**' && part.slice(-2) === '**') {
+        var b = document.createElement('strong');
+        b.appendChild(document.createTextNode(part.slice(2, -2)));
+        target.appendChild(b);
+      } else {
+        // Stray single asterisks are emphasis the model half-wrote; strip
+        // them rather than showing punctuation the citizen has to ignore.
+        target.appendChild(document.createTextNode(part.replace(/\*/g, '')));
+      }
+    });
+  }
+
+  function renderMarkdown(container, text) {
+    container.textContent = '';
+    var lines = text.split('\n');
+    var list = null;
+
+    lines.forEach(function (raw) {
+      var line = raw.trim();
+      var bullet = /^[-*•]\s+/.test(line);
+
+      if (bullet) {
+        if (!list) { list = document.createElement('ul'); container.appendChild(list); }
+        var li = document.createElement('li');
+        renderInline(li, line.replace(/^[-*•]\s+/, ''));
+        list.appendChild(li);
+        return;
+      }
+      list = null;
+      if (!line) return;
+      var p = document.createElement('p');
+      renderInline(p, line);
+      container.appendChild(p);
+    });
+  }
+
+  function typingIndicator(body) {
+    const t = el('span', 'typing');
+    t.innerHTML = '<i></i><i></i><i></i>';
+    body.appendChild(t);
+    return t;
+  }
+
+  async function ask(question) {
+    if (!question.trim()) return;
+    suggestions.hidden = true;
+    reset.hidden = false;
+    addMessage('you', question);
+    history.push({ role: 'user', content: question });
+    input.value = '';
+    input.disabled = send.disabled = true;
+
+    const body = addMessage('bot', null);
+    const dots = typingIndicator(body);
+    const answerBox = el('div', 'answer');
+    const status = el('p', 'missing');
+    let answer = '';
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: question,
+          history: history,
+          context_slugs: lastSlugs
+        })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // newline-delimited JSON events
+        let nl;
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line) continue;
+          let ev;
+          try { ev = JSON.parse(line); } catch (e) { continue; }
+
+          if (ev.type === 'status') {
+            // Progress, not an answer. Replaced the moment real text arrives.
+            if (!status.isConnected) body.insertBefore(status, dots);
+            status.textContent = ev.text;
+          } else if (ev.type === 'token') {
+            dots.remove();
+            status.remove();
+            if (!answerBox.isConnected) body.appendChild(answerBox);
+            answer += ev.text;
+            renderMarkdown(answerBox, answer);
+            log.lastElementChild.scrollIntoView({ block: 'end' });
+          } else if (ev.type === 'citations') {
+            lastSlugs = ev.items.map(function (c) { return c.slug; });
+            const box = el('div', 'cites');
+            ev.items.forEach(function (c, i) {
+              const a = el('a', 'cite');
+              a.href = '/scheme/' + c.slug;
+              const num = el('span', 'num', String(i + 1));
+              a.append(num, el('span', null, c.title));
+              box.appendChild(a);
+            });
+            body.appendChild(box);
+          } else if (ev.type === 'error') {
+            dots.remove();
+            status.remove();
+            body.appendChild(el('p', 'missing', ev.message));
+          }
+        }
+      }
+      if (!answer && !answerBox.isConnected) {
+        dots.remove();
+        body.appendChild(el('p', 'missing', 'No answer came back. Please try again.'));
+      }
+    } catch (err) {
+      dots.remove();
+      status.remove();
+      body.appendChild(el('p', 'missing', 'Something went wrong reaching the assistant. Please try again.'));
+    } finally {
+      dots.remove();
+      status.remove();
+      // Only a real answer joins the history. Recording an error string would
+      // teach the next turn to treat the failure as something the citizen was
+      // told, and it would waste the context budget.
+      if (answer.trim()) {
+        history.push({ role: 'assistant', content: answer.trim() });
+        // Keep the last three exchanges; the server trims too, but sending
+        // less costs less on a slow connection.
+        if (history.length > 6) history = history.slice(-6);
+      } else {
+        history.pop();
+      }
+      input.disabled = send.disabled = false;
+      input.focus();
+    }
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    ask(input.value);
+  });
+
+  suggestions.addEventListener('click', function (e) {
+    if (e.target.classList.contains('suggestion')) ask(e.target.textContent);
+  });
+
+  reset.addEventListener('click', function () {
+    history = [];
+    lastSlugs = [];
+    // Keep the opening message, drop the exchange.
+    while (log.children.length > 1) log.removeChild(log.lastElementChild);
+    suggestions.hidden = false;
+    reset.hidden = true;
+    input.focus();
+  });
+})();
+</script>
+{% endblock %}
