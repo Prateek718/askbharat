@@ -73,7 +73,7 @@ selectolax for static HTML, httpx for plain fetches.
 
 ### Tooling
 
-Python 3.14, pytest (90 tests), ruff.
+Python 3.14, pytest (110 tests), ruff, GitHub Actions.
 
 ---
 
@@ -89,18 +89,37 @@ Python 3.14, pytest (90 tests), ruff.
 
 ```bash
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt
-# CPU-only torch keeps the install ~2 GB smaller than the default CUDA build
-.venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
+.venv/bin/pip install -r requirements.txt   # the full dev set
 
 cp .env.example .env      # then fill in OPENROUTER_API_KEY
 
-docker compose up -d
+docker compose up -d db
 .venv/bin/alembic upgrade head
 ```
 
 `alembic upgrade head` creates the pgvector extension itself, so no manual
 `psql` step is needed.
+
+Dependencies are split by role under `requirements/`, and pinned exactly so
+CI, the image and your machine resolve to one tree:
+
+| | |
+|---|---|
+| `base.txt` | config, database, LLM client |
+| `web.txt` | base + FastAPI, Jinja, sentence-transformers, CPU torch |
+| `harvest.txt` | base + Playwright, selectolax, pypdf |
+| `dev.txt` | everything, plus pytest and ruff |
+
+The split is what keeps the runtime image from shipping a ~400 MB Chromium
+that a web server never opens. `web.txt` carries the PyTorch CPU index, so
+torch installs in one step rather than the two-step dance this section used to
+describe.
+
+Only regenerating the corpus needs the browser binary:
+
+```bash
+.venv/bin/playwright install chromium
+```
 
 ### Load the corpus
 
@@ -145,6 +164,80 @@ Multi-day and self-resuming. Launch it with `setsid` so it survives the shell.
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check askbharat/ tests/
 ```
+
+The tests that assert over real scheme data skip when the corpus is not
+loaded, and say so in those words. They do not report the empty database as a
+finished one — that would be the exact confusion this project exists to avoid.
+
+---
+
+## Running it in a container
+
+```bash
+docker compose up -d --build      # db, migrations, then the site on :8077
+```
+
+Three services. `db` is the pgvector image. `migrate` is a one-shot that runs
+`alembic upgrade head` and exits; the site waits on it completing successfully.
+`web` is the app.
+
+Migrations are their own service rather than part of the app's entrypoint
+because two replicas starting together would otherwise race for the same
+Alembic lock, and a schema change would run once per container.
+
+### The image
+
+Multi-stage, CPU-only torch, unprivileged user, ~2.6 GB. The retrieval models
+are **baked in at build time** rather than fetched on first use: otherwise the
+first citizen to ask a question waits for a ~560 MB download, and booting
+depends on Hugging Face being reachable. `HF_HUB_OFFLINE=1` in the runtime
+stage turns any future accidental fetch into a loud error instead of a silent
+one.
+
+The harvest stack is deliberately absent. Rebuilding the corpus is a job you
+run on a host, not a capability the web server needs.
+
+### Probes
+
+| | |
+|---|---|
+| `GET /api/health` | liveness — process only, no database |
+| `GET /api/ready` | readiness — 503 when the database is unreachable |
+| `GET /api/status` | corpus size and extraction progress |
+
+The split matters. A liveness probe that queries the database cannot tell "the
+app is wedged" from "the database is down", and an orchestrator answers the
+first by restarting the container — which does nothing for the second except
+produce a restart loop for the length of the outage. Readiness is where
+dependencies belong, and 503 is what makes a load balancer drain an instance
+and return it without a deploy.
+
+### Configuration
+
+Everything comes from the environment; `.env` is a local convenience and never
+enters an image layer. See `.env.example` for the full set.
+
+`APP_ENV=production` disables `/api/docs` and the OpenAPI schema, and runs a
+startup check for a `localhost` database URL, the development password, and the
+placeholder crawler contact. It **only ever narrows what is exposed and widens
+what is checked** — it never changes what the site says about a scheme. A
+citizen must not get a different answer per environment.
+
+That check logs rather than raises. A dark site helps nobody looking for a
+pension, and the assistant's API key is deliberately not required: without it,
+browse, search and every scheme page still work, and only the assistant goes
+quiet. That is the catalogue/extraction split doing its job.
+
+`WEB_CONCURRENCY` defaults to 1, and that is a memory ceiling rather than a
+number left untuned — each worker loads its own bi-encoder and cross-encoder,
+about 1.1 GB resident apiece.
+
+### What is not done here
+
+This is deployable, not deployed. Still outstanding for a real host: a TLS
+terminator and reverse proxy, a registry to push the image to, backups for the
+Postgres volume, and log shipping. The corpus is a bind mount, which is right
+for one box and wrong for more than one.
 
 ---
 
@@ -261,7 +354,11 @@ askbharat/
     chat.py             retrieval + grounded answering
     templates/, static/
 migrations/             alembic
-tests/                  90 tests
+requirements/           dependencies split by role, pinned
+tests/                  110 tests
+Dockerfile              runtime image — web only, models baked in
+docker-compose.yml      db + one-shot migrate + web
+.github/workflows/      lint, tests, and a build-and-boot check
 ```
 
 `data/` holds the harvest JSONL and content-addressed page bodies (~600 MB in

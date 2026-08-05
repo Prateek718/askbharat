@@ -77,11 +77,21 @@ services:
       CRAWLER_CONTACT: ${CRAWLER_CONTACT:-}
     ports:
       - "${WEB_PORT:-8077}:8077"
+    # Written as the host user so the shared quota counter below stays
+    # writable. The image's own unprivileged user (uid 10001) owns nothing on
+    # a bind-mounted host directory.
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     volumes:
       # Page bodies are content-addressed on disk and read at request time, so
-      # the corpus is mounted rather than copied into the image. Read-only:
-      # nothing in the serving path writes to it.
-      - ./data:/app/data:ro
+      # the corpus is mounted rather than copied into the image.
+      #
+      # Deliberately NOT :ro, which is the tempting default and is wrong here.
+      # The assistant shares data/llm_quota.json with the extraction run — one
+      # counter is what reserves 100 requests/day for live chat out of the
+      # 1,000 the free tier allows. TokenBucket.consume() writes that file on
+      # every call and does not catch the failure, so a read-only mount turns
+      # each question into a 500 the moment someone asks one.
+      - ./data:/app/data
     restart: unless-stopped
 
 volumes:
