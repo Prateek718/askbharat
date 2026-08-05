@@ -14,6 +14,11 @@
 # `playwright install chromium` after pip to fetch the browser itself.
 playwright==1.61.0
 
+# HTML body extraction. Beat our own selectolax extractor head to head (13
+# fields, 0.0% markup leakage) and recovers tables as markdown, which matters
+# because a lot of government content is tabular. selectolax stays for the
+# targeted parsing the spike script does.
+trafilatura==2.1.0
 selectolax==0.4.11
 
 # PDF text. pypdf is the default path; pdfplumber is the lazy fallback in
