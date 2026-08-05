@@ -64,6 +64,27 @@ class Settings:
         "postgresql+psycopg://askbharat:askbharat@localhost:5433/askbharat",
     )
 
+    # "development" or "production". Only ever widens what is checked and
+    # narrows what is exposed — never changes what the site says about a
+    # scheme. A citizen must not get a different answer per environment.
+    app_env: str = os.environ.get("APP_ENV", "development")
+
+    # Bind address. The default is loopback so a dev run is not silently
+    # reachable from the network; a container overrides it to 0.0.0.0, which
+    # is safe there because the publish rule decides real exposure.
+    host: str = os.environ.get("HOST", "127.0.0.1")
+    port: int = int(os.environ.get("PORT", "8077"))
+
+    # One worker by default and that is a deliberate ceiling, not laziness:
+    # each worker loads its own copy of the bi-encoder and cross-encoder,
+    # ~1.1 GB resident apiece. Two workers do not fit on a 7.2 GB box beside
+    # Postgres. Raise it only where the RAM is actually there.
+    workers: int = int(os.environ.get("WEB_CONCURRENCY", "1"))
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.strip().lower() == "production"
+
     @property
     def user_agent(self) -> str:
         """Identify the crawler honestly, with a contact route."""
@@ -76,6 +97,40 @@ class Settings:
                 f"{name.upper()} is not set. Copy .env.example to .env and fill it in."
             )
         return value
+
+    def check_production_ready(self) -> list[str]:
+        """Problems that should stop a production boot. Empty list means go.
+
+        Returned rather than raised so the caller can report every problem at
+        once. Finding out about the second missing variable only after fixing
+        the first is a bad way to spend a deploy window.
+
+        The assistant's API key is intentionally *not* required. Browsing,
+        search and every scheme page work without it — that is the whole point
+        of the catalogue/extraction split — so a missing key degrades the site
+        to read-only rather than refusing to start.
+        """
+        problems: list[str] = []
+        if not self.is_production:
+            return problems
+
+        url = self.database_url
+        if "localhost" in url or "127.0.0.1" in url:
+            problems.append(
+                "DATABASE_URL points at localhost, which in a container is the "
+                "container itself, not the database host."
+            )
+        if "askbharat:askbharat@" in url:
+            problems.append(
+                "DATABASE_URL still carries the development password. Set "
+                "POSTGRES_PASSWORD to something generated."
+            )
+        if self.crawler_contact.startswith("https://example.invalid"):
+            problems.append(
+                "CRAWLER_CONTACT is still the placeholder. It is the address "
+                "sites we crawl use to reach a human; it must be real."
+            )
+        return problems
 
 
 settings = Settings()

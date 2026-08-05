@@ -12,6 +12,7 @@ interaction.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Query, Request
@@ -19,14 +20,32 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from askbharat.config import settings
+from askbharat.db import session as db_session
 from askbharat.web import chat as chat_engine
 from askbharat.web import queries as q
 from askbharat.web.icons import CATEGORY_ICON, CATEGORY_TONE
 
+log = logging.getLogger("askbharat.web")
+
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 
-app = FastAPI(title="askbharat", docs_url="/api/docs")
+# Misconfiguration is reported at import, before the port is bound, so a bad
+# deploy fails visibly at boot instead of serving wrong data quietly. It logs
+# rather than raises: refusing to start would take the site down over a
+# placeholder contact URL, and a dark site helps nobody looking for a pension.
+for _problem in settings.check_production_ready():
+    log.error("production config: %s", _problem)
+
+app = FastAPI(
+    title="askbharat",
+    # The interactive docs enumerate every route and schema. Useful locally,
+    # needless attack surface in production.
+    docs_url=None if settings.is_production else "/api/docs",
+    redoc_url=None,
+    openapi_url=None if settings.is_production else "/openapi.json",
+)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
 templates.env.globals["icon_for"] = lambda c: CATEGORY_ICON.get(c, "default")
@@ -127,4 +146,38 @@ def api_chat(payload: dict = Body(...)):
 
 @app.get("/api/health")
 def health():
+    """Liveness: is this process able to answer at all?
+
+    Deliberately touches nothing external. A liveness probe that queries the
+    database conflates "the app is wedged" with "the database is down", and an
+    orchestrator responds to the first by restarting the container — which
+    cannot fix the second and produces a restart loop for the whole duration
+    of a database outage. Readiness is where dependencies belong.
+    """
+    return {"ok": True}
+
+
+@app.get("/api/ready")
+def ready():
+    """Readiness: can this process actually serve a request right now?
+
+    503 rather than 500 when the database is unreachable, so a load balancer
+    takes the instance out of rotation instead of serving errors, and puts it
+    back without a deploy once the database returns.
+    """
+    if not db_session.ping():
+        return JSONResponse(
+            {"ready": False, "reason": "database unreachable"}, status_code=503
+        )
+    return {"ready": True}
+
+
+@app.get("/api/status")
+def status():
+    """Build metrics: corpus size and how far extraction has got.
+
+    This is the payload /api/health used to return. It runs eleven aggregate
+    subqueries, which is fine on demand and wasteful every few seconds against
+    a probe, so it now sits behind its own route.
+    """
     return {"ok": True, **q.stats(), "extraction": q.extraction_progress()}

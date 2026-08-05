@@ -67,7 +67,7 @@ def stats() -> dict:
     `pages_read` comes from the queue rather than the records table, because
     re-extracting a page upserts its row — the record count sits still while
     real work happens, which is exactly what made the homepage look frozen.
-    It is kept for /api/health, which is where a build metric belongs; the
+    It is kept for /api/status, which is where a build metric belongs; the
     homepage stopped showing it once the run finished, because "4,721 pages
     read so far" answers a question only the person building this asks.
 
