@@ -238,13 +238,8 @@ class SchemeCatalogue(Base):
     url: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    # 384 dims, not the 1024 on `service_records.embedding`. That column was
-    # sized for a large encoder before one was chosen; this one matches the
-    # model actually in use (multilingual-e5-small), picked because Hindi
-    # queries returned zero results under full-text search and because a
-    # 1024-dim model's memory does not fit beside the extraction pass. The two
-    # columns are NOT interchangeable — a vector written by one model is
-    # meaningless to the other, whatever the dimensions.
+    # 384 dims, matching multilingual-e5-small. Sized to fit comfortably in
+    # memory during runtime and extraction.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(384), nullable=True)
 
 

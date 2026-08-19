@@ -88,8 +88,7 @@ Rules, in priority order:
 5. Be brief and concrete. Lead with the schemes that match. Use short
    paragraphs or a short list. No preamble, no "great question".
 
-6. Write in the language the citizen used. If they wrote in Hindi, answer in
-   Hindi.
+6. Write in clear, plain English.
 
 7. This is a conversation. Earlier turns are shown above the records. When the
    citizen says "that one", "the second scheme", or "it", resolve the reference
@@ -211,7 +210,7 @@ def vector_candidates(query: str, limit: int = 30) -> list[str]:
     """Slugs by meaning, best first.
 
     This is the half that answers "my husband died and I have no income" with a
-    widow pension, and that answers Hindi at all. Degrades to an empty list
+    widow pension. Degrades to an empty list
     rather than raising: if the model cannot load, or the catalogue has not
     been embedded yet, the assistant should quietly fall back to lexical search
     rather than fail.
@@ -295,9 +294,8 @@ def retrieve(query: str, k: int = TOP_K, rerank_pool: int = RERANK_POOL) -> list
     Three stages, each fixing the stage before:
 
       1. **Recall** — three independent retrievers. Lexical cannot connect
-         "I cannot see" to a disability scheme and returns nothing at all for
-         Devanagari. Semantic-over-names blurs exact titles, offering five
-         adjacent scholarships when one was asked for. Semantic-over-rules
+         "I cannot see" to a disability scheme. Semantic-over-names blurs exact titles,
+         offering five adjacent scholarships when one was asked for. Semantic-over-rules
          matches on eligibility instead of name, which is the only one that
          can answer "I have a BPL card and two acres" — and it covers only
          what extraction has reached so far.

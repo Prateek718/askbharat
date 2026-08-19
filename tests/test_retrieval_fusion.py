@@ -65,16 +65,8 @@ class TestQueryTokeniser:
         out = _any_term_query("pension & widow | (scholarship) !x:*")
         assert set("&()!:*") .isdisjoint(out)
 
-    def test_devanagari_yields_no_lexical_terms(self):
-        """Hindi produces nothing here, and that is correct.
-
-        Devanagari matras are combining marks, which are not `isalnum()`, so
-        the letters-only pattern shatters each word into single-consonant
-        fragments that the length filter then drops. Widening the pattern would
-        not help: 0 of 4,810 catalogue titles contain Devanagari, so there is
-        nothing for a Hindi lexeme to match. Hindi is served by the semantic
-        retriever, which is precisely why the assistant needed one.
-        """
+    def test_non_ascii_query_yields_no_lexical_terms(self):
+        """Non-ASCII scripts produce an empty string here without erroring."""
         assert _any_term_query("मुझे छात्रवृत्ति चाहिए") == ""
 
     def test_a_query_of_pure_noise_yields_nothing(self):

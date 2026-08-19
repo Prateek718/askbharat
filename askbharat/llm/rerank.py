@@ -36,15 +36,9 @@ log = logging.getLogger(__name__)
 #   BAAI/bge-reranker-base            7/7 top-3, 3998 ms median, ~1.1 GB
 #   cross-encoder/ms-marco-MiniLM-L-6  7/7 top-3,  661 ms median,  ~90 MB
 #
-# Same results, six times faster, a twelfth of the memory. The multilingual
-# model looked like the principled default — the corpus has Hindi queries and
-# an English-only cross-encoder should mangle them — but it did not survive
-# measurement, for a reason worth writing down: the *retriever* is multilingual,
-# so it finds the right candidates for a Devanagari query on its own, and the
-# reranker only ever sees the English (and transliterated-Hindi) catalogue text
-# it is good at. "मुझे छात्रवृत्ति चाहिए" still lands on a scholarship.
+# Same results, six times faster, a twelfth of the memory.
 #
-# Override with RERANK_MODEL if the corpus ever stops being Latin-script.
+# Override with RERANK_MODEL if needed.
 MODEL_NAME = os.environ.get(
     "RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
 )
