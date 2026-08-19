@@ -9,12 +9,7 @@ lexically reasonable and useless to the person asking.
 
 Model choice — `intfloat/multilingual-e5-small`:
 
-- **Multilingual**, which is not a nice-to-have here. Hindi queries returned
-  literally zero results under full-text search, because the corpus is English
-  and `to_tsquery('english', ...)` has nothing to match Devanagari against.
-- **384 dimensions, ~470 MB resident.** The box has 7.2 GB total and runs a
-  multi-day extraction pass; a 1024-dim large model would be the better
-  retriever and the wrong trade here.
+- **384 dimensions, ~470 MB resident.** A 1024-dim large model would be the wrong trade on a CPU host with limited RAM.
 - **E5 needs asymmetric prefixes.** Queries are prefixed `query: ` and
   documents `passage: `. Omitting them silently degrades retrieval rather than
   erroring, which is why it is done here rather than left to callers.

@@ -44,8 +44,7 @@ Avoid both. Concretely:
    A page that describes a scheme, award, benefit, or process IS a service page
    even if it has no application form on it.
 
-Page text may be in Hindi or another Indian language. Extract from it normally
-and write the extracted values in English.
+Extract from the page normally and write the extracted values in English.
 """
 
 # myScheme pages are rendered from one template with named sections, so the
