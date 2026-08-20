@@ -7,9 +7,8 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Live demo:** https://huggingface.co/spaces/Prateek718/askbharat *(Deploying)*
+**Live demo:** Deployment in progress.
 
-> Free-tier hosting — the first request after an idle period takes ~15s while the instance wakes. Subsequent requests are fast.
 
 ## Overview
 
