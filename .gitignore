@@ -3,7 +3,7 @@
 *.key
 
 # Data — large, regenerable, and not all of it is ours to redistribute
-data/
+/data/
 *.jsonl
 *.log
 

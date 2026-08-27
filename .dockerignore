@@ -1,7 +1,7 @@
 # The build context is sent to the daemon before the first instruction runs.
 # Unignored, data/ alone makes that ~600 MB per build.
 
-data/
+/data/
 *.jsonl
 *.log
 
