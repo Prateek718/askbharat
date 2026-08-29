@@ -54,10 +54,17 @@ MODEL_CHAINS: dict[str, list[str]] = {
         "openai/gpt-oss-20b:free",
         "google/gemma-4-31b-it:free",
     ],
-    # Grounded answering. Quality matters most here; revisit after Phase 6.
+    # Grounded answering, and the only chain the live site exercises.
+    # gemma-4-31b leads because the deploy adds a Google AI Studio key to the
+    # OpenRouter account (Settings -> Integrations), so `:free` gemma calls now
+    # route through that key's own Google quota instead of OpenRouter's shared
+    # free pool. The shared pool is chronically 429'd upstream
+    # ("limit_source: upstream_provider_shared_pool") and was what left the
+    # deployed assistant returning nothing. nemotron-120b stays as the fallback
+    # for when the Google quota is spent; openrouter/free is the last resort.
     "answer": [
-        "nvidia/nemotron-3-super-120b-a12b:free",
         "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
         "openrouter/free",                          # auto-router, last resort
     ],
 }
