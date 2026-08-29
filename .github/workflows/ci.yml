@@ -99,7 +99,7 @@ jobs:
         # A built image that cannot start is not a passing build. No database
         # here on purpose: /api/health is process-only, and this asserts that.
         run: |
-          docker run -d --name web -p 8077:8077 askbharat-web:ci
+          docker run -d --name web -e PORT=8077 -p 8077:8077 askbharat-web:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8077/api/health; then
               echo "\nliveness ok"; exit 0
