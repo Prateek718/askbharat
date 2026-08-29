@@ -15,6 +15,8 @@ would silently blow through the quota.
 from __future__ import annotations
 
 import json
+import logging
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -22,6 +24,8 @@ from datetime import date
 from pathlib import Path
 
 from askbharat.config import DATA_DIR
+
+log = logging.getLogger(__name__)
 
 
 class DailyQuotaExceeded(RuntimeError):
@@ -73,20 +77,58 @@ class DailyQuota:
 
     def __init__(self, cap: int = 1000, path: Path | None = None):
         self.cap = cap
-        self.path = path or (DATA_DIR / "llm_quota.json")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._mem = {"day": date.today().isoformat(), "used": 0}
+        self.path = self._resolve_path(path or (DATA_DIR / "llm_quota.json"))
+
+    @staticmethod
+    def _resolve_path(preferred: Path) -> Path | None:
+        """Pick a writable location for the counter file, or None for in-memory.
+
+        Persistence exists for the multi-day extraction job, which runs where
+        DATA_DIR is writable. The web app on Cloud Run runs as a non-root user
+        under a root-owned /app and cannot create DATA_DIR, so fall back to the
+        system temp dir — still writable there and still shared across requests
+        in the same container — then to an in-process counter if even that
+        fails. A web server that restarts often would have a stale persisted
+        count anyway.
+        """
+        candidates = [
+            preferred,
+            Path(tempfile.gettempdir()) / "askbharat" / preferred.name,
+        ]
+        for candidate in candidates:
+            try:
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                return candidate
+            except OSError as e:
+                log.warning("quota path %s unavailable (%s)", candidate.parent, e)
+        log.warning("quota persistence disabled; using in-memory counter")
+        return None
 
     def _read(self) -> dict:
+        today = date.today().isoformat()
+        if self.path is None:
+            if self._mem.get("day") != today:
+                self._mem = {"day": today, "used": 0}
+            return dict(self._mem)
         if not self.path.exists():
-            return {"day": date.today().isoformat(), "used": 0}
+            return {"day": today, "used": 0}
         try:
             d = json.loads(self.path.read_text())
         except (json.JSONDecodeError, OSError):
-            return {"day": date.today().isoformat(), "used": 0}
-        if d.get("day") != date.today().isoformat():
-            return {"day": date.today().isoformat(), "used": 0}
+            return {"day": today, "used": 0}
+        if d.get("day") != today:
+            return {"day": today, "used": 0}
         return d
+
+    def _write(self, d: dict) -> None:
+        if self.path is None:
+            self._mem = dict(d)
+            return
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(d))
+        tmp.replace(self.path)   # atomic — survives a crash mid-write
 
     @property
     def used(self) -> int:
@@ -109,9 +151,7 @@ class DailyQuota:
             if d["used"] + n > self.cap:
                 raise DailyQuotaExceeded(d["used"], self.cap, self._seconds_to_reset())
             d["used"] += n
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(d))
-            tmp.replace(self.path)   # atomic — survives a crash mid-write
+            self._write(d)
             return d["used"]
 
     def refund(self, n: int = 1) -> None:
@@ -119,6 +159,4 @@ class DailyQuota:
         with self._lock:
             d = self._read()
             d["used"] = max(0, d["used"] - n)
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(d))
-            tmp.replace(self.path)
+            self._write(d)
